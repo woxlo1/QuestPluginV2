@@ -239,11 +239,6 @@ object QuestPartyCommand {
 
     // ---- helpers ----
 
-    private fun copyIdComponent(partyId: String): Array<BaseComponent> =
-        ComponentBuilder("$PREFIX§e§l[ここをクリックでIDをコピー]")
-            .event(ClickEvent(ClickEvent.Action.COPY_TO_CLIPBOARD, partyId))
-            .create()
-
     private fun joinSuggestComponent(): Array<BaseComponent> =
         ComponentBuilder("$PREFIX§a§l[ここをクリックで参加コマンド自動入力]")
             .event(ClickEvent(ClickEvent.Action.SUGGEST_COMMAND, "/party accept"))
