@@ -1,4 +1,3 @@
-// File: src/main/java/com/woxloi/questpluginv2/database/DatabaseManager.java
 package com.woxloi.questpluginv2.database;
 
 import com.woxloi.questpluginv2.QuestPluginV2;
@@ -28,6 +27,11 @@ import java.util.logging.Level;
  * 同じ CREATE TABLE 文がハードコードされており、片方だけ更新すると
  * スキーマが食い違うリスクがあった。database.sql を単一の正として扱い、
  * このクラスはそれをパースして実行するだけにする。
+ *
+ * 修正点2: migrateSchema() を追加。CREATE TABLE IF NOT EXISTS では
+ * 既存テーブルへのカラム追加が反映されないため（quest_npcs.entity_type の追加等）、
+ * INFORMATION_SCHEMA でカラム存在を確認した上で必要な ALTER TABLE のみを実行する
+ * 簡易マイグレーション機構。initializeTables() の直後に呼ぶこと。
  */
 public class DatabaseManager {
 
@@ -99,6 +103,44 @@ public class DatabaseManager {
         }
 
         plugin.getLogger().info("全テーブルの初期化が完了しました（" + statements.size() + " 文を実行）。");
+
+        migrateSchema();
+    }
+
+    /**
+     * CREATE TABLE IF NOT EXISTS では反映されない、既存テーブルへのカラム追加を行う。
+     * 各エントリは「テーブル名・カラム名・カラム追加用のALTER文」の組。
+     * カラムが既に存在する場合はスキップするため、何度実行しても安全（冪等）。
+     */
+    private void migrateSchema() {
+        migrateColumn("quest_npcs", "entity_type",
+                "ALTER TABLE quest_npcs ADD COLUMN entity_type VARCHAR(32) NOT NULL DEFAULT 'VILLAGER' AFTER name");
+    }
+
+    private void migrateColumn(String table, String column, String alterSql) {
+        try {
+            boolean exists = columnExists(table, column);
+            if (exists) return;
+
+            executeSql(alterSql);
+            plugin.getLogger().info("マイグレーション: " + table + "." + column + " を追加しました。");
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.SEVERE,
+                    "マイグレーション中にエラー (" + table + "." + column + "): " + e.getMessage(), e);
+        }
+    }
+
+    private boolean columnExists(String table, String column) throws SQLException {
+        String sql = "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS " +
+                "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?";
+        try (Connection conn = getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, table);
+            ps.setString(2, column);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() && rs.getInt(1) > 0;
+            }
+        }
     }
 
     /**

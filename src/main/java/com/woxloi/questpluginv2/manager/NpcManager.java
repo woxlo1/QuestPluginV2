@@ -6,8 +6,9 @@ import com.woxloi.questpluginv2.model.npc.QuestNpc;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.NamespacedKey;
+import org.bukkit.entity.EntityType;
+import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
-import org.bukkit.entity.Villager;
 import org.bukkit.persistence.PersistentDataType;
 
 import java.sql.SQLException;
@@ -18,11 +19,16 @@ import java.util.logging.Level;
 /**
  * Citizens等に依存しない独自NPC管理クラス。
  *
- * Villagerエンティティをそのままスポーンし、AIを無効化・無敵化した上で
- * PersistentDataContainer に DB上のNPC IDを書き込んで紐付ける。
- * プラグイン側でスポーン管理しているため、ワールドのオートセーブで
- * 増殖しないよう Villager#setPersistent(false) にしている
+ * 任意のEntityType（LivingEntityのサブタイプ）をそのままスポーンし、
+ * AIを無効化・無敵化した上で PersistentDataContainer に DB上のNPC IDを
+ * 書き込んで紐付ける。プラグイン側でスポーン管理しているため、
+ * ワールドのオートセーブで増殖しないよう setPersistent(false) にしている
  * （リロード/再起動時は loadAll() で毎回スポーンし直す）。
+ *
+ * 修正点: 以前は Villager 固定でスポーンしていたが、村人以外の任意のMobを
+ * NPCとして使えるよう EntityType を保持し、LivingEntity 汎用でスポーンする
+ * ように変更した。EntityType が LivingEntity を生成可能な種別かどうかは
+ * isSpawnableLivingType() で検証する。
  */
 public class NpcManager {
 
@@ -52,9 +58,11 @@ public class NpcManager {
         try {
             db.query("SELECT * FROM quest_npcs", null, rs -> {
                 while (rs.next()) {
+                    EntityType type = parseEntityType(rs.getString("entity_type"));
                     QuestNpc npc = new QuestNpc(
                             rs.getInt("id"),
                             rs.getString("name"),
+                            type,
                             rs.getString("world"),
                             rs.getDouble("x"),
                             rs.getDouble("y"),
@@ -78,27 +86,61 @@ public class NpcManager {
         plugin.getLogger().info(npcs.size() + "件のNPCを読み込みました。");
     }
 
+    /**
+     * DBに保存された文字列からEntityTypeへ変換する。
+     * 不明な値・カラム未設定（古いレコード）の場合は VILLAGER にフォールバックする。
+     */
+    private EntityType parseEntityType(String raw) {
+        if (raw == null || raw.isBlank()) return EntityType.VILLAGER;
+        try {
+            EntityType type = EntityType.valueOf(raw.toUpperCase());
+            if (!isSpawnableLivingType(type)) {
+                plugin.getLogger().warning("NPCのentity_typeがLivingEntityではありません。VILLAGERにフォールバックします: " + raw);
+                return EntityType.VILLAGER;
+            }
+            return type;
+        } catch (IllegalArgumentException e) {
+            plugin.getLogger().warning("不明なentity_typeです。VILLAGERにフォールバックします: " + raw);
+            return EntityType.VILLAGER;
+        }
+    }
+
+    /**
+     * 指定したEntityTypeがNPCとしてスポーン可能（LivingEntityのサブタイプ）かどうかを判定する。
+     * ARMOR_STAND等の非LivingEntityや、PLAYER・UNKNOWN等の特殊な値を除外する。
+     */
+    public static boolean isSpawnableLivingType(EntityType type) {
+        if (type == null) return false;
+        if (type == EntityType.PLAYER || type == EntityType.UNKNOWN) return false;
+        Class<?> entityClass = type.getEntityClass();
+        return entityClass != null && LivingEntity.class.isAssignableFrom(entityClass);
+    }
+
     private void spawnEntity(QuestNpc npc) {
         var world = Bukkit.getWorld(npc.getWorld());
         if (world == null) {
-            plugin.getLogger().warning( + npc.getId() + "のワールドが見つかりません: " + npc.getWorld());
+            plugin.getLogger().warning(npc.getId() + "のワールドが見つかりません: " + npc.getWorld());
             return;
         }
         Location loc = new Location(world, npc.getX(), npc.getY(), npc.getZ(), npc.getYaw(), 0f);
 
-        Villager villager = world.spawn(loc, Villager.class, v -> {
-            v.setCustomName(npc.getName());
-            v.setCustomNameVisible(true);
-            v.setAI(false);
-            v.setInvulnerable(true);
-            v.setSilent(true);
-            v.setCollidable(false);
-            v.setPersistent(false); // 自前で再スポーンするので保存させない
-            v.getPersistentDataContainer().set(npcIdKey, PersistentDataType.INTEGER, npc.getId());
-        });
+        EntityType type = isSpawnableLivingType(npc.getEntityType()) ? npc.getEntityType() : EntityType.VILLAGER;
 
-        npc.setEntityUUID(villager.getUniqueId());
-        entityToNpcId.put(villager.getUniqueId(), npc.getId());
+        LivingEntity entity = (LivingEntity) world.spawnEntity(loc, type);
+        entity.setCustomName(npc.getName());
+        entity.setCustomNameVisible(true);
+        entity.setAI(false);
+        entity.setInvulnerable(true);
+        entity.setSilent(true);
+        entity.setCollidable(false);
+        entity.setPersistent(false); // 自前で再スポーンするので保存させない
+        entity.getPersistentDataContainer().set(npcIdKey, PersistentDataType.INTEGER, npc.getId());
+
+        // Flying系・水生Mob等が床に沈む/浮く事故を避けるため、重力は残したままにする。
+        // AI無効化のみで「棒立ち」を実現する（敵対Mobであっても攻撃モーション等は発生しない）。
+
+        npc.setEntityUUID(entity.getUniqueId());
+        entityToNpcId.put(entity.getUniqueId(), npc.getId());
     }
 
     private void despawnEntity(QuestNpc npc) {
@@ -120,30 +162,47 @@ public class NpcManager {
     //  作成・削除・設定
     // ============================================================
 
-    /** プレイヤーの現在地にNPCを作成する。失敗時はnullを返す。 */
+    /**
+     * プレイヤーの現在地にNPCを作成する（常にVILLAGERとして作成）。失敗時はnullを返す。
+     * 村人以外のMobにしたい場合は、作成後に setEntityType() で変更する。
+     */
     public QuestNpc createNpc(Player creator, String name) {
+        return createNpc(creator, name, EntityType.VILLAGER);
+    }
+
+    /**
+     * プレイヤーの現在地に指定したEntityTypeでNPCを作成する。失敗時はnullを返す。
+     *
+     * @param creator 作成者
+     * @param name    NPC名
+     * @param type    スポーンするエンティティ種別（LivingEntityのサブタイプである必要がある）
+     */
+    public QuestNpc createNpc(Player creator, String name, EntityType type) {
+        if (!isSpawnableLivingType(type)) {
+            plugin.getLogger().warning("NPC作成に失敗: スポーン不可能なentity_typeです: " + type);
+            return null;
+        }
+
         Location loc = creator.getLocation();
-        int id;
         try {
-            id = db.query(
-                    "INSERT INTO quest_npcs (name, world, x, y, z, yaw) VALUES (?, ?, ?, ?, ?, ?)",
+            db.update(
+                    "INSERT INTO quest_npcs (name, entity_type, world, x, y, z, yaw) VALUES (?, ?, ?, ?, ?, ?, ?)",
                     ps -> {
                         ps.setString(1, name);
-                        ps.setString(2, loc.getWorld().getName());
-                        ps.setDouble(3, loc.getX());
-                        ps.setDouble(4, loc.getY());
-                        ps.setDouble(5, loc.getZ());
-                        ps.setFloat(6, loc.getYaw());
-                    },
-                    rs -> -1 // ダミー。実IDはinsert直後に別途取得する
+                        ps.setString(2, type.name());
+                        ps.setString(3, loc.getWorld().getName());
+                        ps.setDouble(4, loc.getX());
+                        ps.setDouble(5, loc.getY());
+                        ps.setDouble(6, loc.getZ());
+                        ps.setFloat(7, loc.getYaw());
+                    }
             );
         } catch (SQLException e) {
             plugin.getLogger().log(Level.SEVERE, "NPC作成中にエラー: " + e.getMessage(), e);
             return null;
         }
 
-        // 直前のINSERTのIDを取得（DatabaseManagerのqueryはPreparedStatementを使うため
-        // LAST_INSERT_ID()を別クエリで引く）
+        int id;
         try {
             Integer lastId = db.query("SELECT LAST_INSERT_ID()", null,
                     rs -> rs.next() ? rs.getInt(1) : null);
@@ -154,7 +213,7 @@ public class NpcManager {
             return null;
         }
 
-        QuestNpc npc = new QuestNpc(id, name, loc.getWorld().getName(),
+        QuestNpc npc = new QuestNpc(id, name, type, loc.getWorld().getName(),
                 loc.getX(), loc.getY(), loc.getZ(), loc.getYaw(), null, null);
         npcs.put(id, npc);
         spawnEntity(npc);
@@ -186,6 +245,30 @@ public class NpcManager {
         if (npc == null) return false;
         npc.setGreeting(greeting);
         return persistField(id, "greeting", greeting);
+    }
+
+    /**
+     * NPCのエンティティ種別を変更する。既存エンティティを消して新しい種別で再スポーンする。
+     *
+     * @return 成功したか（NPCが存在しない、または type がLivingEntityでない場合はfalse）
+     */
+    public boolean setEntityType(int id, EntityType type) {
+        QuestNpc npc = npcs.get(id);
+        if (npc == null) return false;
+        if (!isSpawnableLivingType(type)) return false;
+
+        try {
+            db.update("UPDATE quest_npcs SET entity_type = ? WHERE id = ?",
+                    ps -> { ps.setString(1, type.name()); ps.setInt(2, id); });
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.SEVERE, "NPCタイプ更新中にエラー: " + e.getMessage(), e);
+            return false;
+        }
+
+        despawnEntity(npc);
+        npc.setEntityType(type);
+        spawnEntity(npc);
+        return true;
     }
 
     private boolean persistField(int id, String column, String value) {
@@ -221,7 +304,7 @@ public class NpcManager {
             return false;
         }
 
-        QuestNpc moved = new QuestNpc(id, npc.getName(), loc.getWorld().getName(),
+        QuestNpc moved = new QuestNpc(id, npc.getName(), npc.getEntityType(), loc.getWorld().getName(),
                 loc.getX(), loc.getY(), loc.getZ(), loc.getYaw(), npc.getQuestId(), npc.getGreeting());
         npcs.put(id, moved);
         spawnEntity(moved);

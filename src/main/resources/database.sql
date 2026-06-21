@@ -9,6 +9,10 @@
 --
 -- 文をセミコロンで区切ったシンプルなパーサーで読み込むため、
 -- 各文の末尾には必ず ";" を置くこと。コメント行は "--" で始める。
+--
+-- 修正点: quest_npcs に entity_type を追加（村人以外の任意Mobをスポーンできるようにするため）。
+-- 既存DBには CREATE TABLE IF NOT EXISTS では反映されないため、
+-- DatabaseManager.migrateSchema() で ALTER TABLE による後方互換マイグレーションを別途行う。
 
 CREATE TABLE IF NOT EXISTS quests (
     id                  VARCHAR(64)  PRIMARY KEY,
@@ -35,6 +39,7 @@ CREATE TABLE IF NOT EXISTS quest_rewards (
 CREATE TABLE IF NOT EXISTS quest_npcs (
     id          INT AUTO_INCREMENT PRIMARY KEY,
     name        VARCHAR(64)  NOT NULL,
+    entity_type VARCHAR(32)  NOT NULL DEFAULT 'VILLAGER',
     world       VARCHAR(64)  NOT NULL,
     x           DOUBLE       NOT NULL,
     y           DOUBLE       NOT NULL,

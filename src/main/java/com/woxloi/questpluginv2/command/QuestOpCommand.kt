@@ -1,6 +1,7 @@
 package com.woxloi.questpluginv2.command
 
 import com.woxloi.questpluginv2.QuestPluginV2
+import com.woxloi.questpluginv2.manager.NpcManager
 import com.woxloi.questpluginv2.model.quest.Quest
 import com.woxloi.questpluginv2.model.quest.QuestType
 import com.woxloi.questpluginv2.model.reward.QuestReward
@@ -13,9 +14,14 @@ import oraserver.orapluginapi.commandapi.argumenttype.IntArg
 import oraserver.orapluginapi.commandapi.argumenttype.LongArg
 import oraserver.orapluginapi.commandapi.argumenttype.StringArg
 import org.bukkit.Bukkit
+import org.bukkit.entity.EntityType
 
 /**
  * 修正点: ヘルプ表示を HelpMenu に委譲（QuestCommand/QuestPartyCommandとの重複解消）。
+ * 修正点2: /questop npc settype <id> <EntityType> を追加。
+ *   NPC作成は引き続き /questop npc create <名前> で常にVILLAGERとして作成し、
+ *   村人以外のMobにしたい場合はこのコマンドで後から変更する運用にしている
+ *   （create時にtype引数を増やすより、既存コマンドの互換性を保てるため）。
  */
 object QuestOpCommand {
 
@@ -27,7 +33,8 @@ object QuestOpCommand {
         HelpMenu.Entry("/questop create gui",                                "新しいクエストをGUIで作成します",                 "questpluginv2.op"),
         HelpMenu.Entry("/questop edit <id>",                                 "クエストをGUIで編集します",                      "questpluginv2.op"),
         HelpMenu.Entry("/questop delete <id>",                               "クエストを削除します",                           "questpluginv2.op"),
-        HelpMenu.Entry("/questop npc create <名前>",                          "現在地にNPCを作成します",                        "questpluginv2.op"),
+        HelpMenu.Entry("/questop npc create <名前>",                          "現在地にNPCを作成します（村人）",                  "questpluginv2.op"),
+        HelpMenu.Entry("/questop npc settype <id> <EntityType>",            "NPCのMob種別を変更します",                       "questpluginv2.op"),
         HelpMenu.Entry("/questop npc remove <id>",                           "NPCを削除します",                               "questpluginv2.op"),
         HelpMenu.Entry("/questop npc setquest <id> <questId>",               "NPCにクエストを設定します",                      "questpluginv2.op"),
         HelpMenu.Entry("/questop npc setgreeting <id> <文>",                 "NPCの挨拶を設定します",                         "questpluginv2.op"),
@@ -48,6 +55,12 @@ object QuestOpCommand {
         HelpMenu.Entry("/questop complete <player> <questId>",               "プレイヤーのクエストを強制完了します",            "questpluginv2.op"),
         HelpMenu.Entry("/questop start <player> <questId>",                  "プレイヤーのクエストを強制開始します",            "questpluginv2.op"),
     )
+
+    /** NPCに使えるEntityType（LivingEntityのサブタイプ）のサジェスト候補を生成する */
+    private fun spawnableEntityTypeTooltips(): List<ToolTip> =
+        EntityType.values()
+            .filter { NpcManager.isSpawnableLivingType(it) }
+            .map { ToolTip(it.name) }
 
     fun buildArg(plugin: QuestPluginV2): OraCommandLiteral {
         val qm = plugin.questManager
@@ -123,8 +136,44 @@ object QuestOpCommand {
             .setPlayerExecutor { data ->
                 val name = data.getArgument("name", String::class.java)
                 val npc = plugin.npcManager.createNpc(data.sender, name)
-                if (npc != null) data.sender.sendMessage("$PREFIX§a§l${name}を作成しました ID: §e§l${npc.id}")
-                else data.sender.sendMessage("$PREFIX§c§l作成に失敗しました")
+                if (npc != null) {
+                    data.sender.sendMessage("$PREFIX§a§l${name}を作成しました ID: §e§l${npc.id}")
+                    data.sender.sendMessage("$PREFIX§7§l村人以外のMobにしたい場合は §f/questop npc settype ${npc.id} <種別>")
+                } else {
+                    data.sender.sendMessage("$PREFIX§c§l作成に失敗しました")
+                }
+            }
+
+        // ---- npc settype <id> <EntityType> ----
+        npcLiteral.literal("settype")
+            .argument("id", IntArg(1, Int.MAX_VALUE))
+            .suggest { _: OraCommandData -> plugin.npcManager.allNpcs.map { ToolTip(it.id.toString(), it.name) } }
+            .argument("type", StringArg.word())
+            .suggest { _: OraCommandData -> spawnableEntityTypeTooltips() }
+            .setExecutor { data ->
+                val id = data.getArgument("id", Int::class.java)
+                val typeStr = data.getArgument("type", String::class.java)
+
+                if (plugin.npcManager.getNpc(id) == null) {
+                    data.sender.sendMessage("$PREFIX§c§l${id}が見つかりません"); return@setExecutor
+                }
+
+                val type = try {
+                    EntityType.valueOf(typeStr.uppercase())
+                } catch (e: IllegalArgumentException) {
+                    data.sender.sendMessage("$PREFIX§c§l不明なMob種別です: $typeStr"); return@setExecutor
+                }
+
+                if (!com.woxloi.questpluginv2.manager.NpcManager.isSpawnableLivingType(type)) {
+                    data.sender.sendMessage("$PREFIX§c§lNPCにできない種別です: $typeStr")
+                    return@setExecutor
+                }
+
+                if (plugin.npcManager.setEntityType(id, type)) {
+                    data.sender.sendMessage("$PREFIX§a§l${id}のMob種別を§e§l${type.name}§a§lに変更しました")
+                } else {
+                    data.sender.sendMessage("$PREFIX§c§l変更に失敗しました")
+                }
             }
 
         npcLiteral.literal("remove")
@@ -177,7 +226,7 @@ object QuestOpCommand {
             val npcs = plugin.npcManager.allNpcs
             data.sender.sendMessage("§e§l--- NPC一覧 (${npcs.size}件) ---")
             npcs.forEach { n ->
-                data.sender.sendMessage("§6§l[${n.id}] §f§l${n.name} §7§l(${n.world}) クエスト: §a§l${n.questId ?: "なし"}")
+                data.sender.sendMessage("§6§l[${n.id}] §f§l${n.name} §7§l(§d§l${n.entityType.name}§7§l/${n.world}) クエスト: §a§l${n.questId ?: "なし"}")
             }
         }
         // ---- reload ----

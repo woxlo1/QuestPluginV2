@@ -1,18 +1,22 @@
 package com.woxloi.questpluginv2.model.npc;
 
-import org.bukkit.entity.Villager;
+import org.bukkit.entity.EntityType;
 
 import java.util.UUID;
 
 /**
  * 独自NPCの1件分のデータ。
- * Citizens等の外部プラグインに依存せず、Villagerエンティティを
+ * Citizens等の外部プラグインに依存せず、任意のLivingEntityを
  * 自前でスポーン・管理するための保持データ。
+ *
+ * 修正点: 村人(Villager)固定だったエンティティ種別を entityType として
+ * 保持できるようにした。デフォルトは VILLAGER（後方互換のため）。
  */
 public class QuestNpc {
 
     private final int id;
     private String name;
+    private EntityType entityType;
     private String world;
     private double x, y, z;
     private float yaw;
@@ -22,10 +26,11 @@ public class QuestNpc {
     /** スポーン中のエンティティUUID。未スポーン時はnull */
     private UUID entityUUID;
 
-    public QuestNpc(int id, String name, String world, double x, double y, double z,
+    public QuestNpc(int id, String name, EntityType entityType, String world, double x, double y, double z,
                     float yaw, String questId, String greeting) {
         this.id = id;
         this.name = name;
+        this.entityType = entityType != null ? entityType : EntityType.VILLAGER;
         this.world = world;
         this.x = x;
         this.y = y;
@@ -38,6 +43,8 @@ public class QuestNpc {
     public int getId() { return id; }
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
+    public EntityType getEntityType() { return entityType; }
+    public void setEntityType(EntityType entityType) { this.entityType = entityType; }
     public String getWorld() { return world; }
     public double getX() { return x; }
     public double getY() { return y; }
