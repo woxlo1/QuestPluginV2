@@ -75,13 +75,13 @@ public class NpcManager {
         for (QuestNpc npc : npcs.values()) {
             spawnEntity(npc);
         }
-        plugin.getLogger().info(npcs.size() + " 件のNPCを読み込みました。");
+        plugin.getLogger().info(npcs.size() + "件のNPCを読み込みました。");
     }
 
     private void spawnEntity(QuestNpc npc) {
         var world = Bukkit.getWorld(npc.getWorld());
         if (world == null) {
-            plugin.getLogger().warning("NPC #" + npc.getId() + " のワールドが見つかりません: " + npc.getWorld());
+            plugin.getLogger().warning( + npc.getId() + "のワールドが見つかりません: " + npc.getWorld());
             return;
         }
         Location loc = new Location(world, npc.getX(), npc.getY(), npc.getZ(), npc.getYaw(), 0f);
@@ -150,7 +150,7 @@ public class NpcManager {
             if (lastId == null) return null;
             id = lastId;
         } catch (SQLException e) {
-            plugin.getLogger().log(Level.SEVERE, "NPC ID取得中にエラー: " + e.getMessage(), e);
+            plugin.getLogger().log(Level.SEVERE, "NPCID取得中にエラー: " + e.getMessage(), e);
             return null;
         }
 
