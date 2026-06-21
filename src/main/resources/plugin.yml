@@ -1,0 +1,30 @@
+name: QuestPluginV2
+version: 1.0.0
+main: com.woxloi.questpluginv2.QuestPluginV2
+api-version: '1.20'
+authors: [woxloi]
+softdepend:
+  - Vault
+  - MythicMobs
+
+commands:
+  quest:
+    description: クエスト管理コマンド
+  party:
+    description: パーティー管理コマンド
+  questop:
+    description: クエスト管理者コマンド
+
+permissions:
+  questpluginv2.quest:
+    description: クエストコマンドを使用できる
+    default: true
+  questpluginv2.party:
+    description: パーティーコマンドを使用できる
+    default: true
+  questpluginv2.op:
+    description: 管理者コマンドを使用できる
+    default: op
+  questpluginv2.bypass.limit:
+    description: クエスト同時受注制限をバイパスする
+    default: op

@@ -1,0 +1,106 @@
+// Groovy
+plugins {
+    id 'java'
+    id 'org.jetbrains.kotlin.jvm' version '1.9.23'
+    id 'com.github.johnrengelman.shadow' version '8.1.1'
+}
+
+group = 'com.woxloi'
+version = '1.0.0'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17)
+    }
+}
+
+kotlin {
+    jvmToolchain(17)
+}
+
+repositories {
+    mavenCentral()
+    maven { url = 'https://hub.spigotmc.org/nexus/content/repositories/snapshots/' }
+    maven { url = 'https://repo.papermc.io/repository/maven-public/' }
+    maven { url = 'https://jitpack.io' }
+    maven { url = 'https://mvn.lumine.io/repository/maven-public/' }
+    maven {
+        url = uri('https://maven.pkg.github.com/woxlo1/OraPluginAPI')
+        credentials {
+            username = findProperty('gpr.user') ?: System.getenv('GITHUB_USERNAME') ?: ''
+            password = findProperty('gpr.key') ?: System.getenv('GITHUB_TOKEN') ?: ''
+        }
+    }
+}
+
+dependencies {
+    compileOnly 'org.spigotmc:spigot-api:1.20.4-R0.1-SNAPSHOT'
+
+    // Kotlin
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.9.23"
+    implementation "org.jetbrains.kotlin:kotlin-reflect:1.9.23"
+    implementation "org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3"
+    implementation "org.jetbrains.kotlinx:kotlinx-coroutines-jdk8:1.7.3"
+
+    implementation 'com.zaxxer:HikariCP:5.1.0'
+    implementation 'com.mysql:mysql-connector-j:8.3.0'
+
+    compileOnly 'com.github.MilkBowl:VaultAPI:1.7.1'
+    compileOnly 'io.lumine:Mythic-Dist:5.6.1'
+
+    // 内部API（必要に応じて認証トークンを設定）
+    implementation 'oraserver:orapluginapi:2f1b85e'
+    compileOnly 'oraserver:base:2f1b85e'
+    implementation 'oraserver:commandapi:2f1b85e'
+
+    testImplementation platform('org.junit:junit-bom:5.10.2')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+}
+
+test {
+    useJUnitPlatform()
+}
+
+shadowJar {
+    archiveBaseName.set('QuestPluginV2')
+    archiveClassifier.set('')
+    archiveVersion.set(version.toString())
+
+    relocate 'com.zaxxer.hikari', 'com.woxloi.questpluginv2.libs.hikari'
+    relocate 'com.mysql', 'com.woxloi.questpluginv2.libs.mysql'
+    exclude 'oraserver/orapluginapi/**'
+    exclude 'oraserver/orapluginapi/commandapi/**'
+    exclude 'kotlin/**'
+    exclude 'kotlinx/**'
+    exclude 'org/jetbrains/**'
+    exclude 'META-INF/kotlin*'
+
+    mergeServiceFiles()
+}
+
+build {
+    dependsOn shadowJar
+}
+
+processResources {
+    filteringCharset = 'UTF-8'
+
+    // plugin.yml だけ expand
+    filesMatching("plugin.yml") {
+        expand(version: project.version)
+    }
+
+    // 重複を許可しない
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
+
+tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
+    kotlinOptions {
+        jvmTarget = '17'
+        freeCompilerArgs += ['-Xjvm-default=all']
+    }
+}

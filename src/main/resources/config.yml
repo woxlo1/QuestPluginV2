@@ -1,0 +1,39 @@
+database:
+  host: "localhost"
+  port: 3306
+  name: "questpluginv2"
+  user: "root"
+  password: "password"
+  pool-size: 10
+  connection-timeout: 30000
+
+quest:
+  max-active-quests: 5          # 同時受注できる最大クエスト数
+
+  # 以下2項目は現バージョンでは未実装のためコメントアウトしています。
+  # 設定しても何も起こりません。実装が追加された際に有効化してください。
+  # daily-quest-limit: 10       # （未実装）1日に受注できる最大クエスト数（0で無制限）
+  # share-radius: 50            # （未実装）パーティークエスト共有の有効範囲（ブロック数、0で無制限）
+  #                               注意: 現在の party.progress-share は距離を一切見ず
+  #                               パーティー全員に進捗を共有する実装になっています。
+  #                               距離制限つきの共有が必要な場合はコード側の対応が必要です。
+
+  cooldown-enabled: true        # クエストのクールダウン有効化
+
+party:
+  default-max-size: 6           # デフォルトのパーティー上限人数
+
+  # 以下1項目は現バージョンでは未実装のためコメントアウトしています。
+  # default-max-size を超える人数のパーティーを作る手段が無いため、
+  # 「絶対上限」を別途設ける機能は今のところ存在しません。
+  # absolute-max-size: 20       # （未実装）パーティー人数の絶対上限
+
+  invite-timeout-seconds: 60    # 招待タイムアウト（秒）
+  chat-prefix: "§a§l[§6§lQuestPartyPlugin§d§lV2§a§l]§r" # パーティーチャットのプレフィックス
+  progress-share: true          # パーティーでのクエスト進捗共有（距離は見ません。全員に共有されます）
+
+mythicmobs:
+  enabled: false                # MythicMobs連携を有効化するか
+
+vault:
+  enabled: false                # Vault連携を有効化するか

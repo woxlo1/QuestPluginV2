@@ -1,0 +1,12 @@
+.gradle/
+build/
+bin/
+out/
+libs/
+.idea/
+*.iml
+*.class
+*.log
+*.lock
+target/
+gradle.properties
