@@ -9,10 +9,7 @@ import com.woxloi.questpluginv2.listener.PartyListener;
 import com.woxloi.questpluginv2.listener.PlayerJoinQuitListener;
 import com.woxloi.questpluginv2.listener.QuestProgressListener;
 import com.woxloi.questpluginv2.listener.QuestDeathRespawnListener;
-import com.woxloi.questpluginv2.manager.ActiveQuestManager;
-import com.woxloi.questpluginv2.manager.PartyManager;
-import com.woxloi.questpluginv2.manager.QuestManager;
-import com.woxloi.questpluginv2.manager.VaultManager;
+import com.woxloi.questpluginv2.manager.*;
 import net.milkbowl.vault.economy.Economy;
 import oraserver.orapluginapi.OraPlugin;
 import oraserver.orapluginapi.commandapi.OraCommandLiteral;
@@ -33,6 +30,7 @@ public class QuestPluginV2 extends JavaPlugin {
 
     private ActiveQuestManager activeQuestManager;
     private DatabaseManager    databaseManager;
+    private NpcManager npcManager;
     private QuestManager       questManager;
     private PartyManager       partyManager;
     private VaultManager       vaultManager;
@@ -64,6 +62,7 @@ public class QuestPluginV2 extends JavaPlugin {
         activeQuestManager = new ActiveQuestManager(this);  // QuestManager の後に初期化
         partyManager      = new PartyManager(this);
         vaultManager      = new VaultManager(this);
+        npcManager = new NpcManager(this);
 
         // --- Vault 連携 ---
         if (getConfig().getBoolean("vault.enabled") && setupEconomy()) {
@@ -92,9 +91,15 @@ public class QuestPluginV2 extends JavaPlugin {
         if (activeQuestManager != null) {
             activeQuestManager.shutdown();
         }
+
         if (databaseManager != null) {
             databaseManager.disconnect();
         }
+
+        if (npcManager != null) {
+            npcManager.despawnAll();
+        }
+
         getLogger().info("QuestPluginV2 が無効化されました。");
     }
 
@@ -170,6 +175,7 @@ public class QuestPluginV2 extends JavaPlugin {
     public static QuestPluginV2 getInstance()          { return instance; }
     public ActiveQuestManager   getActiveQuestManager(){ return activeQuestManager; }
     public DatabaseManager      getDatabaseManager()   { return databaseManager; }
+    public NpcManager getNpcManager() { return npcManager; }
     public QuestManager         getQuestManager()      { return questManager; }
     public PartyManager         getPartyManager()      { return partyManager; }
     public VaultManager         getVaultManager()      { return vaultManager; }

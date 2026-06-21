@@ -22,11 +22,17 @@ object QuestOpCommand {
     private val PREFIX get() = QuestPluginV2.PREFIX
 
     private val helpEntries = listOf(
-        HelpMenu.Entry("/questop help",                                      "このヘルプを表示します",                          "questpluginv2.op"),
+        HelpMenu.Entry("/questop help",                                      "このヘルプを表示します",                         "questpluginv2.op"),
         HelpMenu.Entry("/questop create <id> <type> <target> <amount> <name>","新しいクエストを作成します",                    "questpluginv2.op"),
-        HelpMenu.Entry("/questop create gui",                                "新しいクエストをGUIで作成します",                    "questpluginv2.op"),
-        HelpMenu.Entry("/questop edit <id>",                                    "クエストをGUIで編集します",                   "questpluginv2.op"),
+        HelpMenu.Entry("/questop create gui",                                "新しいクエストをGUIで作成します",                 "questpluginv2.op"),
+        HelpMenu.Entry("/questop edit <id>",                                 "クエストをGUIで編集します",                      "questpluginv2.op"),
         HelpMenu.Entry("/questop delete <id>",                               "クエストを削除します",                           "questpluginv2.op"),
+        HelpMenu.Entry("/questop npc create <名前>",                          "現在地にNPCを作成します",                        "questpluginv2.op"),
+        HelpMenu.Entry("/questop npc remove <id>",                           "NPCを削除します",                               "questpluginv2.op"),
+        HelpMenu.Entry("/questop npc setquest <id> <questId>",               "NPCにクエストを設定します",                      "questpluginv2.op"),
+        HelpMenu.Entry("/questop npc setgreeting <id> <文>",                 "NPCの挨拶を設定します",                         "questpluginv2.op"),
+        HelpMenu.Entry("/questop npc tp <id>",                               "NPCを現在地に移動します",                        "questpluginv2.op"),
+        HelpMenu.Entry("/questop npc list",                                  "NPC一覧を表示します",                            "questpluginv2.op"),
         HelpMenu.Entry("/questop reload",                                    "クエストデータをリロードします",                   "questpluginv2.op"),
         HelpMenu.Entry("/questop setdesc <id> <desc>",                       "クエストの説明を設定します",                      "questpluginv2.op"),
         HelpMenu.Entry("/questop setcooldown <id> <seconds>",                "クールダウンを設定します",                        "questpluginv2.op"),
@@ -109,6 +115,71 @@ object QuestOpCommand {
                 else data.sender.sendMessage("$PREFIX§c§lエラーが発生しました")
             }
 
+        // ---- npc ----
+        val npcLiteral = root.literal("npc")
+
+        npcLiteral.literal("create")
+            .argument("name", StringArg.greedyPhrase())
+            .setPlayerExecutor { data ->
+                val name = data.getArgument("name", String::class.java)
+                val npc = plugin.npcManager.createNpc(data.sender, name)
+                if (npc != null) data.sender.sendMessage("$PREFIX§a§l${name}を作成しました ID: §e§l${npc.id}")
+                else data.sender.sendMessage("$PREFIX§c§l作成に失敗しました")
+            }
+
+        npcLiteral.literal("remove")
+            .argument("id", IntArg(1, Int.MAX_VALUE))
+            .setExecutor { data ->
+                val id = data.getArgument("id", Int::class.java)
+                if (plugin.npcManager.removeNpc(id)) data.sender.sendMessage("$PREFIX§a§l${id}を削除しました")
+                else data.sender.sendMessage("$PREFIX§c§l${id}が見つかりません")
+            }
+
+        npcLiteral.literal("setquest")
+            .argument("id", IntArg(1, Int.MAX_VALUE))
+            .argument("questId", StringArg.word())
+            .suggest { _: OraCommandData -> qm.allQuests.map { ToolTip(it.id, it.name) } }
+            .setExecutor { data ->
+                val id = data.getArgument("id", Int::class.java)
+                val questId = data.getArgument("questId", String::class.java)
+                val quest = qm.getQuest(questId)
+                if (quest == null) {
+                    data.sender.sendMessage("$PREFIX§c§l${questId}は存在しません")
+                    return@setExecutor Unit
+                }
+                val success = plugin.npcManager.setQuest(id, questId)
+                if (success) {
+                    data.sender.sendMessage("$PREFIX§a§l${id}に${questId}を設定しました")
+                } else {
+                    data.sender.sendMessage("$PREFIX§c§l${id}が見つかりません")
+                }
+            }
+
+        npcLiteral.literal("setgreeting")
+            .argument("id", IntArg(1, Int.MAX_VALUE))
+            .argument("text", StringArg.greedyPhrase())
+            .setExecutor { data ->
+                val id = data.getArgument("id", Int::class.java)
+                val text = data.getArgument("text", String::class.java)
+                if (plugin.npcManager.setGreeting(id, text)) data.sender.sendMessage("$PREFIX§a§l挨拶を設定しました")
+                else data.sender.sendMessage("$PREFIX§c§l${id}が見つかりません")
+            }
+
+        npcLiteral.literal("tp")
+            .argument("id", IntArg(1, Int.MAX_VALUE))
+            .setPlayerExecutor { data ->
+                val id = data.getArgument("id", Int::class.java)
+                if (plugin.npcManager.teleportNpcHere(id, data.sender)) data.sender.sendMessage("$PREFIX§a§l${id}を現在地に移動しました")
+                else data.sender.sendMessage("$PREFIX§c§l${id}が見つかりません")
+            }
+
+        npcLiteral.literal("list").setExecutor { data ->
+            val npcs = plugin.npcManager.allNpcs
+            data.sender.sendMessage("§e§l--- NPC一覧 (${npcs.size}件) ---")
+            npcs.forEach { n ->
+                data.sender.sendMessage("§6§l[${n.id}] §f§l${n.name} §7§l(${n.world}) クエスト: §a§l${n.questId ?: "なし"}")
+            }
+        }
         // ---- reload ----
         root.literal("reload").setExecutor { data ->
             plugin.reloadConfig(); qm.loadAllQuests()

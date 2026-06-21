@@ -32,6 +32,20 @@ CREATE TABLE IF NOT EXISTS quest_rewards (
     FOREIGN KEY (quest_id) REFERENCES quests(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS quest_npcs (
+    id          INT AUTO_INCREMENT PRIMARY KEY,
+    name        VARCHAR(64)  NOT NULL,
+    world       VARCHAR(64)  NOT NULL,
+    x           DOUBLE       NOT NULL,
+    y           DOUBLE       NOT NULL,
+    z           DOUBLE       NOT NULL,
+    yaw         FLOAT        NOT NULL DEFAULT 0,
+    quest_id    VARCHAR(64),
+    greeting    TEXT,
+    created_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (quest_id) REFERENCES quests(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS player_quest_progress (
     player_uuid    CHAR(36)    NOT NULL,
     quest_id       VARCHAR(64) NOT NULL,
