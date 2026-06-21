@@ -25,6 +25,7 @@ object QuestOpCommand {
         HelpMenu.Entry("/questop help",                                      "このヘルプを表示します",                          "questpluginv2.op"),
         HelpMenu.Entry("/questop create <id> <type> <target> <amount> <name>","新しいクエストを作成します",                    "questpluginv2.op"),
         HelpMenu.Entry("/questop create gui",                                "新しいクエストをGUIで作成します",                    "questpluginv2.op"),
+        HelpMenu.Entry("/questop edit <id>",                                    "クエストをGUIで編集します",                   "questpluginv2.op"),
         HelpMenu.Entry("/questop delete <id>",                               "クエストを削除します",                           "questpluginv2.op"),
         HelpMenu.Entry("/questop reload",                                    "クエストデータをリロードします",                   "questpluginv2.op"),
         HelpMenu.Entry("/questop setdesc <id> <desc>",                       "クエストの説明を設定します",                      "questpluginv2.op"),
@@ -82,6 +83,18 @@ object QuestOpCommand {
         createLiteral.literal("gui").setPlayerExecutor { data ->
             com.woxloi.questpluginv2.gui.QuestCreateGUI(plugin).open(data.sender)
         }
+
+        // ---- edit ----
+        root.literal("edit")
+            .argument("id", StringArg.word())
+            .suggest { _: OraCommandData -> qm.allQuests.map { ToolTip(it.id, it.name) } }
+            .setPlayerExecutor { data ->
+                val id = data.getArgument("id", String::class.java)
+                if (qm.getQuest(id) == null) {
+                    data.sender.sendMessage("$PREFIX§c§l${id}が見つかりません"); return@setPlayerExecutor
+                }
+                com.woxloi.questpluginv2.gui.QuestEditGUI(plugin, id).open(data.sender)
+            }
 
         // ---- delete ----
         root.literal("delete")

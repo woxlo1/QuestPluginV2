@@ -73,8 +73,8 @@ object QuestPartyCommand {
                 data.sender.sendMessage("$PREFIX§c§l作成に失敗しました")
                 return@setPlayerExecutor
             }
-            data.sender.sendMessage("$PREFIX§a§lパーティーを作成しました ID: §e§l${party.partyId}")
-            data.sender.spigot().sendMessage(*copyIdComponent(party.partyId.toString()))
+            data.sender.sendMessage("$PREFIX§a§lパーティーを作成しました")
+            plugin.logger.info("${data.sender.name}がパーティーを作成しました ID: ${party.partyId}")
         }
 
         // ---- invite <player> ----

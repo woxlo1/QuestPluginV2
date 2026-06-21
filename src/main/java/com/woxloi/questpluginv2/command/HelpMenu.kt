@@ -4,8 +4,6 @@ import com.woxloi.questpluginv2.QuestPluginV2
 import net.md_5.bungee.api.chat.BaseComponent
 import net.md_5.bungee.api.chat.ClickEvent
 import net.md_5.bungee.api.chat.ComponentBuilder
-import net.md_5.bungee.api.chat.HoverEvent
-import net.md_5.bungee.api.chat.hover.content.Text
 import org.bukkit.command.CommandSender
 import org.bukkit.entity.Player
 
@@ -17,8 +15,11 @@ import org.bukkit.entity.Player
  *
  * 見た目は他プラグインのヘルプ（多色・記号・絵文字を使った装飾）と被りにくいよう、
  * 装飾記号や絵文字を使わず、左揃えのプレーンな一覧形式にしている。
- * コマンド名をクリックするとそのまま入力欄に補完されるようにし、
- * 説明文と権限はホバーで確認できる。
+ *
+ * 修正点: ホバー表示・クリックで補完入力する機能を廃止し、
+ * コマンド文字列をクリップボードへコピーするだけの単純な形式にした。
+ * 補完入力だと環境によってチャット欄の状態が意図せず変わってしまう
+ * ことがあり、コピーのみの方が安全で分かりやすいため。
  */
 object HelpMenu {
 
@@ -45,7 +46,7 @@ object HelpMenu {
                 sender.spigot().sendMessage(*buildLine(entry))
             }
         } else {
-            // コンソール等、ホバー表示ができない相手にはプレーンテキストで
+            // コンソール等、クリップボード操作ができない相手にはプレーンテキストで
             visible.forEach { entry ->
                 sender.sendMessage("§e§l${entry.usage}  §d§l- ${entry.description}")
             }
@@ -53,18 +54,16 @@ object HelpMenu {
 
         sender.sendMessage("§a§l" + "-".repeat(32))
         if (sender is Player) {
-            sender.sendMessage("§f§lコマンドをクリックすると入力欄に補完されます")
+            sender.sendMessage("§f§lコマンドをクリックするとことでコピーできます")
         }
     }
 
     private fun buildLine(entry: Entry): Array<BaseComponent> {
-        val hover = "§d${entry.description}\n§aPermission: §4${entry.permission}"
-        // 末尾に半角スペースを付けておくことで、補完後すぐ引数を打てるようにする
-        val suggest = entry.usage.substringBefore(" [").substringBefore(" <") + " "
-        return ComponentBuilder()
-            .append("§e§l${entry.usage}")
-            .event(HoverEvent(HoverEvent.Action.SHOW_TEXT, Text(hover)))
-            .event(ClickEvent(ClickEvent.Action.SUGGEST_COMMAND, suggest))
+        // usage部分・説明文はクリックイベント無しのプレーンテキストとして表示し、
+        // 末尾の "[コピー]" にだけ COPY_TO_CLIPBOARD を付与する。
+        return ComponentBuilder("§e§l${entry.usage} §7§l- §d§l${entry.description} ")
+            .append("§b§l[ここをクリックでコピー]")
+            .event(ClickEvent(ClickEvent.Action.COPY_TO_CLIPBOARD, entry.usage))
             .create()
     }
 }
