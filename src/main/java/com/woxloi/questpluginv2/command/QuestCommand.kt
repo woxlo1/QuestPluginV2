@@ -42,6 +42,14 @@ object QuestCommand {
         HelpMenu.Entry("/quest abandon <id>",   "受注中のクエストを放棄します",             "questpluginv2.quest"),
         HelpMenu.Entry("/quest progress",       "受注中クエストの進捗を確認します",         "questpluginv2.quest"),
         HelpMenu.Entry("/quest party <id>",     "パーティーでクエストを受注します（リーダーのみ）", "questpluginv2.quest"),
+        HelpMenu.Entry("/quest player create",                 "民間クエストの作成を開始します",          "questpluginv2.quest"),
+        HelpMenu.Entry("/quest player gui",                 "民間のクエストを閲覧します",          "questpluginv2.quest"),
+        HelpMenu.Entry("/quest player cancel",                 "作成中の民間クエストを破棄します",        "questpluginv2.quest"),
+        HelpMenu.Entry("/quest player list",                   "募集中の民間クエスト一覧を表示します",    "questpluginv2.quest"),
+        HelpMenu.Entry("/quest player accept <id>",            "民間クエストを受注します",                "questpluginv2.quest"),
+        HelpMenu.Entry("/quest player submit <id>",            "民間クエストへ納品します",                "questpluginv2.quest"),
+        HelpMenu.Entry("/quest player delete <id>",            "自分が作成した民間クエストを削除します",  "questpluginv2.quest"),
+        HelpMenu.Entry("/quest tutorial", "チュートリアルを表示します", "questpluginv2.quest"),
         HelpMenu.Entry("/quest start <id>",     "クエストを開始します（V1互換・リーダーのみ）", "questpluginv2.quest"),
         HelpMenu.Entry("/quest leave",          "進行中のクエストを中断します",             "questpluginv2.quest"),
     )
@@ -163,6 +171,108 @@ object QuestCommand {
                 }
                 qm.acceptQuestAsParty(party, data.getArgument("id", String::class.java), data.sender)
             }
+
+        val pqm = plugin.playerQuestManager
+        val playerLiteral = root.literal("player")
+
+        playerLiteral.literal("create").setPlayerExecutor { data ->
+            com.woxloi.questpluginv2.gui.PlayerQuestBoardGUI(plugin, data.sender).open(data.sender)
+        }
+
+        playerLiteral.literal("gui").setPlayerExecutor { data ->
+            com.woxloi.questpluginv2.gui.PlayerQuestBoardGUI(plugin, data.sender).open(data.sender)
+        }
+
+        playerLiteral.literal("cancel").setPlayerExecutor { data ->
+            pqm.clearDraft(data.sender.uniqueId)
+            data.sender.sendMessage("$PREFIX§e§l作成をキャンセルしました")
+        }
+
+        playerLiteral.literal("list").setPlayerExecutor { data ->
+            val open = pqm.openQuests
+            if (open.isEmpty()) {
+                data.sender.sendMessage("$PREFIX§7§l現在募集中の民間クエストはありません"); return@setPlayerExecutor
+            }
+            data.sender.sendMessage("§e§l--- 民間クエスト募集中 (${open.size}件) ---")
+            open.forEach { q ->
+                data.sender.sendMessage("§6§l[${q.id}] §f§l${q.targetMaterial.name} x${q.perPersonAmount}/人 "
+                        + "§7§l(${q.acceptedCount}/${q.maxAcceptors}人) §a§l報酬:${q.rewardMoney}円 §7§l依頼主:${q.creatorName}")
+            }
+        }
+
+        playerLiteral.literal("accept")
+            .argument("id", IntArg(1, Int.MAX_VALUE))
+            .setPlayerExecutor { data ->
+                val id = data.getArgument("id", Int::class.java)
+                when (pqm.accept(data.sender, id)) {
+                    com.woxloi.questpluginv2.manager.PlayerQuestManager.AcceptResult.SUCCESS -> {
+                        val q = pqm.getQuest(id)!!
+                        data.sender.sendMessage("$PREFIX§a§l受注しました！ ${q.targetMaterial.name} を ${q.perPersonAmount}個集めてください")
+                        data.sender.sendMessage("$PREFIX§7§l集まったら /quest player submit $id")
+                    }
+                    com.woxloi.questpluginv2.manager.PlayerQuestManager.AcceptResult.NOT_FOUND ->
+                        data.sender.sendMessage("$PREFIX§c§lそのクエストは存在しません")
+                    com.woxloi.questpluginv2.manager.PlayerQuestManager.AcceptResult.CLOSED ->
+                        data.sender.sendMessage("$PREFIX§c§l募集は締め切られています")
+                    com.woxloi.questpluginv2.manager.PlayerQuestManager.AcceptResult.ALREADY_ACCEPTED ->
+                        data.sender.sendMessage("$PREFIX§c§l既に受注しています")
+                    com.woxloi.questpluginv2.manager.PlayerQuestManager.AcceptResult.FULL ->
+                        data.sender.sendMessage("$PREFIX§c§l募集人数に達しています")
+                    com.woxloi.questpluginv2.manager.PlayerQuestManager.AcceptResult.OWN_QUEST ->
+                        data.sender.sendMessage("$PREFIX§c§l自分のクエストは受注できません")
+                    com.woxloi.questpluginv2.manager.PlayerQuestManager.AcceptResult.DB_ERROR ->
+                        data.sender.sendMessage("$PREFIX§c§l保存中にエラーが発生しました")
+                }
+            }
+
+        playerLiteral.literal("submit")
+            .argument("id", IntArg(1, Int.MAX_VALUE))
+            .setPlayerExecutor { data ->
+                val id = data.getArgument("id", Int::class.java)
+                when (pqm.submit(data.sender, id)) {
+                    com.woxloi.questpluginv2.manager.PlayerQuestManager.SubmitResult.SUCCESS ->
+                        data.sender.sendMessage("$PREFIX§a§l納品完了！報酬を受け取りました")
+                    com.woxloi.questpluginv2.manager.PlayerQuestManager.SubmitResult.NOT_FOUND ->
+                        data.sender.sendMessage("$PREFIX§c§lそのクエストは存在しません")
+                    com.woxloi.questpluginv2.manager.PlayerQuestManager.SubmitResult.NOT_ACCEPTOR ->
+                        data.sender.sendMessage("$PREFIX§c§lこのクエストを受注していません")
+                    com.woxloi.questpluginv2.manager.PlayerQuestManager.SubmitResult.ALREADY_COMPLETED ->
+                        data.sender.sendMessage("$PREFIX§c§l既に納品済みです")
+                    com.woxloi.questpluginv2.manager.PlayerQuestManager.SubmitResult.NOT_ENOUGH_ITEMS -> {
+                        val (have, need) = pqm.getLastSubmitCheck(data.sender.uniqueId)
+                        data.sender.sendMessage("$PREFIX§c§lアイテムが足りません（所持: ${have} / 必要: ${need}）")
+                    }
+                    com.woxloi.questpluginv2.manager.PlayerQuestManager.SubmitResult.CREATOR_INVENTORY_FULL ->
+                        data.sender.sendMessage("$PREFIX§c§l依頼主のインベントリに空きがありません。後でもう一度お試しください")
+                    com.woxloi.questpluginv2.manager.PlayerQuestManager.SubmitResult.VAULT_DISABLED ->
+                        data.sender.sendMessage("$PREFIX§c§lVaultが有効になっていません")
+                    com.woxloi.questpluginv2.manager.PlayerQuestManager.SubmitResult.DB_ERROR ->
+                        data.sender.sendMessage("$PREFIX§c§l保存中にエラーが発生しました")
+                }
+            }
+
+        playerLiteral.literal("delete")
+            .argument("id", IntArg(1, Int.MAX_VALUE))
+            .setPlayerExecutor { data ->
+                val id = data.getArgument("id", Int::class.java)
+                when (pqm.delete(data.sender, id)) {
+                    com.woxloi.questpluginv2.manager.PlayerQuestManager.DeleteResult.SUCCESS ->
+                        data.sender.sendMessage("$PREFIX§a§l削除しました（未使用分の報酬金は返金されます）")
+                    com.woxloi.questpluginv2.manager.PlayerQuestManager.DeleteResult.NOT_FOUND ->
+                        data.sender.sendMessage("$PREFIX§c§lそのクエストは存在しません")
+                    com.woxloi.questpluginv2.manager.PlayerQuestManager.DeleteResult.NOT_OWNER ->
+                        data.sender.sendMessage("$PREFIX§c§l削除権限がありません")
+                    com.woxloi.questpluginv2.manager.PlayerQuestManager.DeleteResult.HAS_ACTIVE_ACCEPTORS ->
+                        data.sender.sendMessage("$PREFIX§c§l未完了の受注者がいるため削除できません")
+                    com.woxloi.questpluginv2.manager.PlayerQuestManager.DeleteResult.DB_ERROR ->
+                        data.sender.sendMessage("$PREFIX§c§l削除中にエラーが発生しました")
+                }
+            }
+
+        root.literal("tutorial").setPlayerExecutor { data ->
+            plugin.tutorialManager.markSeen(data.sender)
+            plugin.tutorialManager.show(data.sender)
+        }
 
         // ---- start <id> (V1互換) ----
         root.literal("start")

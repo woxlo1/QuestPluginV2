@@ -63,6 +63,31 @@ CREATE TABLE IF NOT EXISTS player_quest_progress (
     FOREIGN KEY (quest_id) REFERENCES quests(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS player_quests (
+    id                INT AUTO_INCREMENT PRIMARY KEY,
+    creator_uuid      CHAR(36)    NOT NULL,
+    creator_name      VARCHAR(64) NOT NULL,
+    target_material   VARCHAR(64) NOT NULL,
+    total_amount       INT         NOT NULL,
+    max_acceptors      INT         NOT NULL,
+    per_person_amount  INT         NOT NULL,
+    reward_money       DOUBLE      NOT NULL DEFAULT 0,
+    is_open            TINYINT(1)  NOT NULL DEFAULT 1,
+    created_at         DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_creator (creator_uuid),
+    INDEX idx_open (is_open)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS player_quest_acceptors (
+    quest_id      INT        NOT NULL,
+    acceptor_uuid CHAR(36)   NOT NULL,
+    completed     TINYINT(1) NOT NULL DEFAULT 0,
+    accepted_at   DATETIME   NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    completed_at  DATETIME,
+    PRIMARY KEY (quest_id, acceptor_uuid),
+    FOREIGN KEY (quest_id) REFERENCES player_quests(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS player_quest_history (
     id             INT AUTO_INCREMENT PRIMARY KEY,
     player_uuid    CHAR(36)    NOT NULL,
@@ -97,4 +122,20 @@ CREATE TABLE IF NOT EXISTS party_chat_log (
     message      TEXT        NOT NULL,
     sent_at      DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_party (party_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS pending_item_deliveries (
+    id             INT AUTO_INCREMENT PRIMARY KEY,
+    recipient_uuid CHAR(36)    NOT NULL,
+    material       VARCHAR(64) NOT NULL,
+    amount         INT         NOT NULL,
+    note           VARCHAR(128),
+    created_at     DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_recipient (recipient_uuid)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS tutorial_progress (
+    player_uuid CHAR(36)    PRIMARY KEY,
+    player_name VARCHAR(64) NOT NULL,
+    shown_at    DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

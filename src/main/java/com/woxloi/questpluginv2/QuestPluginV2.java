@@ -4,11 +4,7 @@ import com.woxloi.questpluginv2.command.QuestCommand;
 import com.woxloi.questpluginv2.command.QuestOpCommand;
 import com.woxloi.questpluginv2.command.QuestPartyCommand;
 import com.woxloi.questpluginv2.database.DatabaseManager;
-import com.woxloi.questpluginv2.listener.MythicMobsListener;
-import com.woxloi.questpluginv2.listener.PartyListener;
-import com.woxloi.questpluginv2.listener.PlayerJoinQuitListener;
-import com.woxloi.questpluginv2.listener.QuestProgressListener;
-import com.woxloi.questpluginv2.listener.QuestDeathRespawnListener;
+import com.woxloi.questpluginv2.listener.*;
 import com.woxloi.questpluginv2.manager.*;
 import net.milkbowl.vault.economy.Economy;
 import oraserver.orapluginapi.OraPlugin;
@@ -33,6 +29,8 @@ public class QuestPluginV2 extends JavaPlugin {
     private NpcManager npcManager;
     private QuestManager       questManager;
     private PartyManager       partyManager;
+    private PlayerQuestManager playerQuestManager;
+    private TutorialManager tutorialManager;
     private VaultManager       vaultManager;
     private boolean mythicMobsEnabled = false;
 
@@ -61,6 +59,8 @@ public class QuestPluginV2 extends JavaPlugin {
         questManager      = new QuestManager(this);
         activeQuestManager = new ActiveQuestManager(this);  // QuestManager の後に初期化
         partyManager      = new PartyManager(this);
+        playerQuestManager = new PlayerQuestManager(this);
+        tutorialManager = new TutorialManager(this);
         vaultManager      = new VaultManager(this);
         npcManager = new NpcManager(this);
 
@@ -111,6 +111,7 @@ public class QuestPluginV2 extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new QuestProgressListener(this),    this);
         getServer().getPluginManager().registerEvents(new PartyListener(this),             this);
         getServer().getPluginManager().registerEvents(new PlayerJoinQuitListener(this),   this);
+        getServer().getPluginManager().registerEvents(new TutorialTriggerListener(this), this);
         getServer().getPluginManager().registerEvents(new QuestDeathRespawnListener(this), this);
         if (mythicMobsEnabled) {
             getServer().getPluginManager().registerEvents(new MythicMobsListener(this), this);
@@ -178,6 +179,8 @@ public class QuestPluginV2 extends JavaPlugin {
     public NpcManager getNpcManager() { return npcManager; }
     public QuestManager         getQuestManager()      { return questManager; }
     public PartyManager         getPartyManager()      { return partyManager; }
+    public PlayerQuestManager getPlayerQuestManager() { return playerQuestManager; }
+    public TutorialManager getTutorialManager() { return tutorialManager; }
     public VaultManager         getVaultManager()      { return vaultManager; }
     public boolean              isMythicMobsEnabled()  { return mythicMobsEnabled; }
 }
